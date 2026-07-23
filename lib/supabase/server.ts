@@ -4,6 +4,16 @@ import type { Database } from "./types";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. Set it in your Vercel project settings (or .env.local) and redeploy.`
+    );
+  }
+  return value;
+}
+
 /**
  * Server Component / Route Handler client. Cookie writes are wrapped in
  * try/catch because Server Components can't set cookies — the middleware
@@ -11,10 +21,12 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
  */
 export function createClient() {
   const cookieStore = cookies();
+  const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -41,8 +53,8 @@ export function createClient() {
  */
 export function createServiceRoleClient() {
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     {
       cookies: {
         getAll() {
