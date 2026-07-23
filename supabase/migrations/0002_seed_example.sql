@@ -1,0 +1,7 @@
+-- Optional: example seed data. Replace <YOUR_USER_ID> with a real auth.users
+-- id (from the Supabase dashboard) before running, or skip this file entirely.
+--
+-- insert into public.projects (owner_id, name, description, status)
+-- values
+--   ('<YOUR_USER_ID>', 'Website Redesign', 'Q3 marketing site refresh', 'active'),
+--   ('<YOUR_USER_ID>', 'Client Onboarding Kit', 'Templates and Drive folder for new clients', 'active');
