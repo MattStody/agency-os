@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:reporting": "tsc lib/reporting/checks.ts --rootDir . --outDir .checks --module commonjs --target es2020 --esModuleInterop --skipLibCheck --moduleResolution node && node .checks/lib/reporting/checks.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.1",

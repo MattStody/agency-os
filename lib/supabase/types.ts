@@ -1,3 +1,13 @@
+import type { ReportingSchema } from "./reporting-types";
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 export interface Database {
   __InternalSupabase: {
     PostgrestVersion: "13";
@@ -74,7 +84,17 @@ export interface Database {
     Views: Record<string, never>;
     Functions: Record<string, never>;
   };
+  reporting: ReportingSchema;
 }
 
 export type Project = Database["public"]["Tables"]["projects"]["Row"];
 export type GoogleTokenRow = Database["public"]["Tables"]["google_tokens"]["Row"];
+
+export type ReportingClientRow =
+  Database["reporting"]["Tables"]["clients"]["Row"];
+export type ChannelRow = Database["reporting"]["Tables"]["channels"]["Row"];
+export type AdPerformanceRow =
+  Database["reporting"]["Tables"]["ad_performance_daily"]["Row"];
+export type MetricDefinitionRow =
+  Database["reporting"]["Tables"]["metric_definitions"]["Row"];
+export type CommentaryRow = Database["reporting"]["Tables"]["commentary"]["Row"];

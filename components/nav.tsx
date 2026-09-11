@@ -24,6 +24,12 @@ export async function Nav() {
               >
                 Projects
               </Link>
+              <Link
+                href="/reports"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Reports
+              </Link>
               <UserMenu email={user.email ?? ""} />
             </>
           ) : (
