@@ -1,4 +1,4 @@
-export { getValidAccessToken, GoogleNotConnectedError } from "./tokens";
+export { getValidAccessToken, storeGoogleTokens, GoogleNotConnectedError } from "./tokens";
 export {
   listDriveFiles,
   listDriveFilesInFolder,

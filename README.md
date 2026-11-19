@@ -1,113 +1,119 @@
-# Agency OS
+# Boldly OS
 
-Next.js 14 (App Router) + Supabase Auth (Google OAuth) + Tailwind/shadcn-ui.
-Signs users in with Google, requests Drive scopes (`drive.file`,
-`drive.readonly`), stores the resulting Google access/refresh tokens in
-Supabase, and lists `projects` from Postgres with a detail page that pulls
-in linked Drive files.
+Boldly Media's internal operating system: one login-gated shell (auth, roles,
+client switcher, activity log) with each tool plugged in as a **module**.
+Client-facing portal comes later on the same foundation.
 
-## Stack
+**Stack:** Next.js 14 (App Router, TypeScript) · Postgres + Drizzle ORM · Supabase Auth (Google) ·
+Tailwind / shadcn-style UI · Vitest + PGlite.
 
-- Next.js 14 App Router, TypeScript
-- Supabase Auth + Postgres (`@supabase/ssr`)
-- Tailwind CSS + shadcn/ui-style components
-- All Google API calls live in `lib/google/`
-
-## Project structure
-
-```
-app/
-  login/                 Login page + server actions (Google sign-in)
-  api/auth/callback/     OAuth callback: exchanges code, stores Google tokens
-  projects/              /projects list
-  projects/[id]/         /projects/[id] detail, shows linked Drive files
-  actions.ts             Shared server actions (sign out)
-lib/
-  supabase/              Server, browser, and middleware Supabase clients
-  google/                All Google API calls (tokens.ts, drive.ts)
-components/ui/           shadcn/ui-style primitives
-supabase/migrations/     SQL schema (projects, google_tokens, RLS)
-```
-
-## Setup
-
-### 1. Install dependencies
+## Quick start (local, demo data)
 
 ```bash
 npm install
+cp .env.example .env.local          # then set AUTH_SECRET (openssl rand -base64 32)
+docker compose up -d                # local Postgres on :5432 (or point DATABASE_URL elsewhere)
+npm run db:reset                    # migrate + seed 3 demo clients
+npm run dev                         # http://localhost:3000
 ```
 
-### 2. Create a Supabase project
+With `DEMO_LOGIN=true` the sign-in page lists the demo accounts:
 
-Run the migration in `supabase/migrations/0001_init.sql` against your
-project (via the SQL editor, or the Supabase CLI: `supabase db push`).
-It creates:
+| Demo user | Role | Sees |
+|---|---|---|
+| Alex Morgan | Admin | Everything; creates clients, manages team |
+| Jordan Lee | Team member | All clients; edits details, contacts, accounts |
+| Priya Shah | Client user (phase 2) | Harbourline Dental only, read-only |
 
-- `projects` — `owner_id` (FK to `auth.users`), `name`, `description`,
-  `drive_folder_id`, `status`, timestamps. RLS restricts rows to their owner.
-- `google_tokens` — one row per user holding `access_token`,
-  `refresh_token`, `scope`, `expires_at`. RLS allows a user to `select`
-  their own row; only the service-role client (server-only) can write to it.
+Demo sign-in is always disabled on Vercel production (`VERCEL_ENV=production`).
 
-### 3. Create a Google OAuth client
+## Scripts
 
-In [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+| | |
+|---|---|
+| `npm run dev` / `build` / `start` | Next.js |
+| `npm test` | Vitest: permissions, client-scoping (real Postgres via PGlite), registry |
+| `npm run check` | typecheck + lint + tests (what CI runs) |
+| `npm run db:migrate` | apply `db/migrations/*.sql` |
+| `npm run db:seed` | insert demo data (idempotent) |
+| `npm run db:reset` | drop + migrate + seed (**local databases only**) |
+| `npm run new:module -- <id> --name "Name" [--scope client\|global]` | scaffold a module — see [docs/MODULES.md](docs/MODULES.md) |
 
-1. Create an OAuth 2.0 Client ID (Web application).
-2. Add authorized redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`.
-3. Under **OAuth consent screen > Scopes**, add:
-   - `https://www.googleapis.com/auth/drive.file`
-   - `https://www.googleapis.com/auth/drive.readonly`
+## Production setup (Supabase + Vercel)
 
-### 4. Configure the Google provider in Supabase
+1. **Database.** Create a Supabase project. Set `DATABASE_URL` to the *transaction pooler* URI and run
+   `npm run db:migrate` (do **not** run `db:seed` in production unless you want the demo clients).
+2. **Google sign-in.** Google Cloud → OAuth client (Web). Redirect URI
+   `https://<project-ref>.supabase.co/auth/v1/callback`. Add it as the Google provider in Supabase Auth.
+   Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+3. **Access.** `ALLOWED_EMAIL_DOMAINS=boldlymedia.com` (anyone on it becomes a team member on first
+   sign-in) and `BOOTSTRAP_ADMIN_EMAILS=<your email>` (becomes admin on first sign-in).
+4. **Vercel.** Add the same env vars. Leave `DEMO_LOGIN` unset in production.
 
-In Supabase Dashboard → Authentication → Providers → Google: paste the
-Client ID/Secret from step 3 and enable the provider.
+All secrets live in env vars; nothing is committed. `.env*.local` is git-ignored.
 
-### 5. Environment variables
+## How it fits together
 
-Copy `.env.example` to `.env.local` and fill in:
-
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase
-  Project Settings → API.
-- `SUPABASE_SERVICE_ROLE_KEY` — same page (server-only, never expose to
-  the client).
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — from step 3. Used
-  server-side in `lib/google/tokens.ts` to refresh expired access tokens
-  directly against Google (Supabase does not refresh the *provider*
-  token for you).
-
-### 6. Run
-
-```bash
-npm run dev
+```
+app/
+  login/                    sign-in (Google + demo)
+  api/auth/callback/        OAuth callback → provision user, store Google tokens
+  (shell)/layout.tsx        sidebar, client switcher, nav built from the module registry
+  (shell)/page.tsx          home: clients + recent activity
+  (shell)/c/[client]/       client workspace (overview, settings, client-scoped modules)
+  (shell)/tools/…           internal tools (global modules)
+  (shell)/admin/…           clients, team, activity
+modules/
+  registry.ts               every module the shell knows about
+  types.ts                  ModuleManifest
+  core/                     manifests, service (business logic), actions, validation
+  approvals/ reporting/ portal/ tasks/ invoicing/   planned (nav stubs)
+lib/
+  db/                       schema, connection, withAccess (scoping), migration runner
+  permissions/              roles → permissions, Access, assert helpers (pure)
+  auth/                     session, demo sign-in, provisioning
+  activity/                 logActivity / listActivity
+db/migrations/              SQL source of truth (tables, RLS policies, grants)
+db/seed/                    demo data
+tests/                      Vitest
 ```
 
-Visit `/login`, sign in with Google, and grant Drive access. You'll be
-redirected to `/projects`.
+### Client isolation (two layers)
 
-## How Google tokens are stored and refreshed
+1. **App layer** — every service function checks the caller's permissions and client scope
+   (`assertCan`, `assertClientAccess`) before touching data.
+2. **Database layer** — every user-facing query runs inside `withAccess()`, which switches the
+   transaction to the `boldly_app` role and sets `app.user_id`, `app.role`, `app.all_clients`,
+   `app.client_ids`. Row-level security on every client-owned table filters by those settings, so a
+   query that forgets its `WHERE client_id = …` still returns nothing from other clients.
+   `google_tokens` isn't granted to `boldly_app` at all.
 
-1. `signInWithGoogle` (`app/login/actions.ts`) starts the OAuth flow via
-   `supabase.auth.signInWithOAuth`, requesting the Drive scopes with
-   `access_type=offline` and `prompt=consent` so Google issues a
-   `refresh_token`.
-2. `app/api/auth/callback/route.ts` exchanges the code for a Supabase
-   session, reads `session.provider_token` /
-   `session.provider_refresh_token`, and upserts them into
-   `google_tokens` using the service-role client (bypasses RLS since this
-   write happens server-side, outside the user's request context).
-3. `lib/google/tokens.ts#getValidAccessToken` reads that row, and if the
-   access token is expired, refreshes it directly against Google's token
-   endpoint using the stored `refresh_token`, then persists the new
-   access token/expiry.
-4. `lib/google/drive.ts` is the only place that calls the Drive API,
-   using `getValidAccessToken` under the hood.
+Tests in `tests/scoping.db.test.ts` run raw unfiltered SQL as each role against real Postgres to prove it.
 
-## Notes / next steps
+Pages resolve clients with `requireClient(slug)`, which 404s for clients outside your scope
+(no "exists but forbidden" leak).
 
-- Project creation UI isn't included — seed rows via
-  `supabase/migrations/0002_seed_example.sql` or the Supabase dashboard
-  to see the `/projects` list populated.
-- A project surfaces Drive files by setting its `drive_folder_id` to a
-  Google Drive folder ID the signed-in user can access.
+### Roles
+
+| Permission | Admin | Team | Client user |
+|---|:-:|:-:|:-:|
+| View clients | ✓ | ✓ | own only |
+| Edit client details / accounts / contacts | ✓ | ✓ | |
+| Create clients, change status | ✓ | | |
+| View activity log, team | ✓ | ✓ | |
+| Manage team | ✓ | | |
+| Internal tools | ✓ | ✓ | |
+| Approvals: view / decide | ✓ | ✓ | ✓ (phase 2) |
+
+Defined in `lib/permissions/index.ts`.
+
+## Status
+
+- **Phase 1 — Core shell:** done (this commit).
+- **Phase 2 — Approvals:** next.
+- **Phase 3 — Client portal:** after approvals.
+- Reporting, Tasks, Invoicing: nav stubs only.
+
+Branding uses the palette/fonts from the Boldly site (Newsreader + Inter; deep teal `#012F37`,
+mint `#A9E0D6`, periwinkle `#7F9BF2`, lavender `#C7C0F6`, off-white `#F3F1EA`). The wordmark in
+`components/brand/logo.tsx` is a placeholder until the official logo file is added.

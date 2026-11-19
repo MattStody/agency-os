@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import type { Database } from "./types";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -24,7 +23,7 @@ export function createClient() {
   const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   const supabaseAnonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-  return createServerClient<Database>(
+  return createServerClient(
     supabaseUrl,
     supabaseAnonKey,
     {
@@ -40,28 +39,6 @@ export function createClient() {
           } catch {
             // Called from a Server Component; middleware handles refresh.
           }
-        },
-      },
-    }
-  );
-}
-
-/**
- * Service-role client for trusted server-side writes (e.g. persisting
- * Google OAuth tokens) that must bypass RLS. Never import this in
- * client-facing code paths.
- */
-export function createServiceRoleClient() {
-  return createServerClient<Database>(
-    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
-    {
-      cookies: {
-        getAll() {
-          return [];
-        },
-        setAll() {
-          // no-op: service role client is not tied to a user session
         },
       },
     }

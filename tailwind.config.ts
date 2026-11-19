@@ -6,6 +6,7 @@ const config: Config = {
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./lib/**/*.{ts,tsx}",
+    "./modules/**/*.{ts,tsx}",
   ],
   theme: {
     container: {
@@ -16,7 +17,24 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-inter)", "Inter", "Arial", "sans-serif"],
+        serif: ["var(--font-newsreader)", "Newsreader", "Georgia", "serif"],
+      },
       colors: {
+        brand: {
+          ink: "#012F37",
+          pine: "#0E2B2B",
+          deep: "#0A3E47",
+          teal: "#0F4A54",
+          sea: "#2B6663",
+          sage: "#9CC0BB",
+          mint: "#A9E0D6",
+          mist: "#D2E4E1",
+          periwinkle: "#7F9BF2",
+          lavender: "#C7C0F6",
+          paper: "#F3F1EA",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

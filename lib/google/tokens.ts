@@ -1,5 +1,7 @@
 import "server-only";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { googleTokens } from "@/lib/db/schema";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 // Refresh a bit early to avoid racing token expiry mid-request.
@@ -13,56 +15,52 @@ interface RefreshResponse {
 }
 
 /**
- * Returns a valid Google access token for the given Supabase user,
+ * Returns a valid Google access token for the given Boldly OS user id,
  * refreshing it via the stored refresh_token if it has expired.
  * Throws if the user has never connected Google or has no refresh_token
  * on file (re-auth required in that case).
  */
 export async function getValidAccessToken(userId: string): Promise<string> {
-  const supabase = createServiceRoleClient();
-
-  const { data: tokenRow, error } = await supabase
-    .from("google_tokens")
-    .select("access_token, refresh_token, expires_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) throw new Error(`Failed to load Google tokens: ${error.message}`);
+  const db = getDb();
+  const [tokenRow] = await db.select().from(googleTokens).where(eq(googleTokens.userId, userId));
   if (!tokenRow) throw new GoogleNotConnectedError(userId);
 
-  const expiresAtMs = tokenRow.expires_at
-    ? new Date(tokenRow.expires_at).getTime()
-    : 0;
-  const isExpired = Date.now() + EXPIRY_SKEW_MS >= expiresAtMs;
+  const expiresAtMs = tokenRow.expiresAt ? tokenRow.expiresAt.getTime() : 0;
+  if (Date.now() + EXPIRY_SKEW_MS < expiresAtMs) return tokenRow.accessToken;
 
-  if (!isExpired) {
-    return tokenRow.access_token;
-  }
+  if (!tokenRow.refreshToken) throw new GoogleNotConnectedError(userId);
 
-  if (!tokenRow.refresh_token) {
-    throw new GoogleNotConnectedError(userId);
-  }
-
-  const refreshed = await refreshAccessToken(tokenRow.refresh_token);
-  const newExpiresAt = new Date(
-    Date.now() + refreshed.expires_in * 1000
-  ).toISOString();
-
-  const { error: updateError } = await supabase
-    .from("google_tokens")
-    .update({
-      access_token: refreshed.access_token,
-      expires_at: newExpiresAt,
+  const refreshed = await refreshAccessToken(tokenRow.refreshToken);
+  await db
+    .update(googleTokens)
+    .set({
+      accessToken: refreshed.access_token,
+      expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
       scope: refreshed.scope,
-      token_type: refreshed.token_type,
+      tokenType: refreshed.token_type,
     })
-    .eq("user_id", userId);
-
-  if (updateError) {
-    console.error("Failed to persist refreshed Google token:", updateError.message);
-  }
+    .where(eq(googleTokens.userId, userId));
 
   return refreshed.access_token;
+}
+
+/** Stores the Google tokens from a sign-in. Keeps the old refresh_token if Google didn't send a new one. */
+export async function storeGoogleTokens(
+  userId: string,
+  tokens: { accessToken: string; refreshToken?: string | null; expiresAt?: Date | null; scope: string }
+) {
+  const values = {
+    userId,
+    accessToken: tokens.accessToken,
+    expiresAt: tokens.expiresAt ?? null,
+    scope: tokens.scope,
+    tokenType: "Bearer",
+    ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),
+  };
+  await getDb()
+    .insert(googleTokens)
+    .values(values)
+    .onConflictDoUpdate({ target: googleTokens.userId, set: values });
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<RefreshResponse> {

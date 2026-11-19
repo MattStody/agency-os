@@ -1,0 +1,63 @@
+import { Activity, Building2, LayoutDashboard, Settings2, Users } from "lucide-react";
+import type { ModuleManifest } from "../types";
+
+// Core is several nav entries rather than one, since it owns the shell's own pages.
+export const coreModules: ModuleManifest[] = [
+  {
+    id: "overview",
+    name: "Overview",
+    description: "Client profile, channels, contacts and recent activity.",
+    icon: LayoutDashboard,
+    scope: "client",
+    section: "workspace",
+    status: "live",
+    requires: "clients.view",
+    path: "",
+    order: 0,
+  },
+  {
+    id: "client-settings",
+    name: "Client settings",
+    description: "Edit the client profile, ad accounts and contacts.",
+    icon: Settings2,
+    scope: "client",
+    section: "workspace",
+    status: "live",
+    requires: "clients.edit",
+    path: "settings",
+    order: 90,
+  },
+  {
+    id: "clients",
+    name: "Clients",
+    description: "All client records.",
+    icon: Building2,
+    scope: "global",
+    section: "admin",
+    status: "live",
+    requires: "clients.view",
+    order: 0,
+  },
+  {
+    id: "team",
+    name: "Team",
+    description: "Boldly staff and their roles.",
+    icon: Users,
+    scope: "global",
+    section: "admin",
+    status: "live",
+    requires: "team.view",
+    order: 10,
+  },
+  {
+    id: "activity",
+    name: "Activity",
+    description: "Audit trail of changes across Boldly OS.",
+    icon: Activity,
+    scope: "global",
+    section: "admin",
+    status: "live",
+    requires: "activity.view",
+    order: 20,
+  },
+];

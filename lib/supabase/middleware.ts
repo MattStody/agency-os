@@ -1,66 +1,53 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import type { Database } from "./types";
+import { DEMO_COOKIE, PUBLIC_PATHS } from "@/lib/auth/constants";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
+/**
+ * Refreshes the Supabase session cookie and does a coarse sign-in gate.
+ * The real authorisation check happens server-side in every page
+ * (requireAccess / requirePermission) — this only saves a round trip.
+ */
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  let response = NextResponse.next({ request });
+  const path = request.nextUrl.pathname;
+  const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+
+  let signedIn = request.cookies.has(DEMO_COOKIE);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // Misconfigured deployment (missing env vars): log loudly, but let the
-    // request through rather than 500ing the entire site from middleware.
-    console.error(
-      "Supabase env vars are not set; skipping session refresh and auth gating."
-    );
-    return supabaseResponse;
-  }
-
-  const supabase = createServerClient<Database>(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
+  if (supabaseUrl && supabaseAnonKey) {
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet: CookieToSet[], headers: Record<string, string>) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            response.cookies.set(name, value, options)
           );
-          // Auth cookie writes (e.g. token refresh) must never be cached
-          // by a CDN/reverse proxy, or one user's session can leak to another.
-          Object.entries(headers).forEach(([key, value]) =>
-            supabaseResponse.headers.set(key, value)
-          );
+          // Auth cookie writes must never be cached by a CDN.
+          Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
         },
       },
-    }
-  );
+    });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    signedIn = signedIn || Boolean(user);
+  }
 
-  // Required: touching getUser() refreshes the session and rewrites the
-  // auth cookies onto supabaseResponse before it reaches the browser.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/auth");
-
-  if (!user && !isAuthRoute && request.nextUrl.pathname.startsWith("/projects")) {
+  if (!signedIn && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", request.nextUrl.pathname);
+    url.search = path === "/" ? "" : `?next=${encodeURIComponent(path)}`;
     return NextResponse.redirect(url);
   }
 
-  return supabaseResponse;
+  return response;
 }
