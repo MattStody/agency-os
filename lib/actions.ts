@@ -32,7 +32,7 @@ export function toActionError(e: unknown): ActionState {
   if (e instanceof ForbiddenError) return { error: e.message };
   const pg = pgMessage(e);
   if (pg) return { error: pg };
-  if (e instanceof Error && e.name === "NotFoundError") return { error: e.message };
+  if (e instanceof Error && ["NotFoundError", "ApprovalStateError"].includes(e.name)) return { error: e.message };
   if (e instanceof Error && !e.message.startsWith("Failed query")) return { error: e.message };
   console.error(e);
   return { error: "Something went wrong. Please try again." };

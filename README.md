@@ -13,7 +13,7 @@ Tailwind / shadcn-style UI · Vitest + PGlite.
 npm install
 cp .env.example .env.local          # then set AUTH_SECRET (openssl rand -base64 32)
 docker compose up -d                # local Postgres on :5432 (or point DATABASE_URL elsewhere)
-npm run db:reset                    # migrate + seed 3 demo clients
+npm run db:reset                    # migrate + seed 3 demo clients and 6 approval items
 npm run dev                         # http://localhost:3000
 ```
 
@@ -23,7 +23,7 @@ With `DEMO_LOGIN=true` the sign-in page lists the demo accounts:
 |---|---|---|
 | Alex Morgan | Admin | Everything; creates clients, manages team |
 | Jordan Lee | Team member | All clients; edits details, contacts, accounts |
-| Priya Shah | Client user (phase 2) | Harbourline Dental only, read-only |
+| Priya Shah | Client user | Harbourline Dental only: reviews and approves its ads and clips |
 
 Demo sign-in is always disabled on Vercel production (`VERCEL_ENV=production`).
 
@@ -32,7 +32,7 @@ Demo sign-in is always disabled on Vercel production (`VERCEL_ENV=production`).
 | | |
 |---|---|
 | `npm run dev` / `build` / `start` | Next.js |
-| `npm test` | Vitest: permissions, client-scoping (real Postgres via PGlite), registry |
+| `npm test` | Vitest: permissions, client scoping and approvals workflow (real Postgres via PGlite), storage signing, registry |
 | `npm run check` | typecheck + lint + tests (what CI runs) |
 | `npm run db:migrate` | apply `db/migrations/*.sql` |
 | `npm run db:seed` | insert demo data (idempotent) |
@@ -46,9 +46,14 @@ Demo sign-in is always disabled on Vercel production (`VERCEL_ENV=production`).
 2. **Google sign-in.** Google Cloud → OAuth client (Web). Redirect URI
    `https://<project-ref>.supabase.co/auth/v1/callback`. Add it as the Google provider in Supabase Auth.
    Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-3. **Access.** `ALLOWED_EMAIL_DOMAINS=boldlymedia.com` (anyone on it becomes a team member on first
+3. **File storage.** In Supabase → Storage, create a **private** bucket named `boldly-os` (or set
+   `STORAGE_BUCKET`). Set `SUPABASE_SERVICE_ROLE_KEY` (server-only). Raise the project's upload size
+   limit (Storage → Settings) if you'll review long videos — the free plan caps files at 50 MB.
+4. **Email.** Create a Resend API key, verify the sending domain, and set `RESEND_API_KEY`,
+   `EMAIL_FROM` and `APP_URL`. Set `CRON_SECRET` so the daily retry job (`vercel.json`) can run.
+5. **Access.** `ALLOWED_EMAIL_DOMAINS=boldlymedia.com` (anyone on it becomes a team member on first
    sign-in) and `BOOTSTRAP_ADMIN_EMAILS=<your email>` (becomes admin on first sign-in).
-4. **Vercel.** Add the same env vars. Leave `DEMO_LOGIN` unset in production.
+6. **Vercel.** Add the same env vars. Leave `DEMO_LOGIN` unset in production.
 
 All secrets live in env vars; nothing is committed. `.env*.local` is git-ignored.
 
@@ -67,12 +72,16 @@ modules/
   registry.ts               every module the shell knows about
   types.ts                  ModuleManifest
   core/                     manifests, service (business logic), actions, validation
-  approvals/ reporting/ portal/ tasks/ invoicing/   planned (nav stubs)
+  approvals/                schema, service, actions, validation, manifests
+  reporting/ portal/ tasks/ invoicing/   planned (nav stubs)
 lib/
   db/                       schema, connection, withAccess (scoping), migration runner
   permissions/              roles → permissions, Access, assert helpers (pure)
   auth/                     session, demo sign-in, provisioning
   activity/                 logActivity / listActivity
+  notifications/            notify() + email delivery job
+  storage/                  private file storage (Supabase / local / memory) + signed URLs
+  email/                    Resend transport + branded template
 db/migrations/              SQL source of truth (tables, RLS policies, grants)
 db/seed/                    demo data
 tests/                      Vitest
@@ -93,6 +102,32 @@ Tests in `tests/scoping.db.test.ts` run raw unfiltered SQL as each role against 
 Pages resolve clients with `requireClient(slug)`, which 404s for clients outside your scope
 (no "exists but forbidden" leak).
 
+### Approvals
+
+One queue for client sign-off on **Meta ads** (single image/video or carousel, with ad copy) and
+**video clips/reels**.
+
+```
+draft ──send──▶ pending ──client decides──▶ approved | changes_requested
+  ▲                                                   │
+  └──────────────── new version ◀─────────────────────┘        any ──▶ archived
+```
+
+- **Boldly** creates an item, uploads files straight to storage (signed upload URL, so large videos
+  never pass through the app server), sends it, and can record a decision on a client contact's
+  behalf ("approved by email").
+- **Clients** see only their own non-draft items. They approve or request changes (a note is
+  required) and comment. On videos, a comment can be pinned to a timecode, and clicking the time
+  jumps the player there.
+- **Internal notes** are Boldly-only comments, hidden from clients by RLS.
+- **History**: every version is kept with its files, copy, notes, decisions and comments.
+- **Notifications**: in-app (bell + `/notifications`) and email (Resend). Clients are told when
+  something is sent; the Boldly people on an item are told about decisions and client comments.
+- Pages: `/c/<client>/approvals` (per client) and `/tools/approvals` (all clients, Boldly only).
+
+Files are private. The app hands out short-lived signed URLs only after its own access checks.
+Locally they're stored in `./.storage` and served by `app/api/files` with HMAC-signed URLs.
+
 ### Roles
 
 | Permission | Admin | Team | Client user |
@@ -103,15 +138,16 @@ Pages resolve clients with `requireClient(slug)`, which 404s for clients outside
 | View activity log, team | ✓ | ✓ | |
 | Manage team | ✓ | | |
 | Internal tools | ✓ | ✓ | |
-| Approvals: view / decide | ✓ | ✓ | ✓ (phase 2) |
+| Approvals: view, comment, approve | ✓ (on behalf of a contact) | ✓ (on behalf of a contact) | ✓ own client |
+| Approvals: create, upload, send, archive | ✓ | ✓ | |
 
 Defined in `lib/permissions/index.ts`.
 
 ## Status
 
-- **Phase 1 — Core shell:** done (this commit).
-- **Phase 2 — Approvals:** next.
-- **Phase 3 — Client portal:** after approvals.
+- **Phase 1 — Core shell:** done.
+- **Phase 2 — Approvals:** done.
+- **Phase 3 — Client portal:** next (client invitations, email sign-in links, portal-only layout).
 - Reporting, Tasks, Invoicing: nav stubs only.
 
 Branding uses the palette/fonts from the Boldly site (Newsreader + Inter; deep teal `#012F37`,

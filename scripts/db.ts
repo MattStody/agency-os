@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import { seedDemo } from "@/db/seed/seed";
 import { migrate } from "@/lib/db/migrate";
+import { getStorage } from "@/lib/storage";
 import * as schema from "@/lib/db/schema";
 import type { Db } from "@/lib/db/types";
 import { loadEnv } from "./env";
@@ -36,8 +37,10 @@ async function main() {
     }
     if (cmd === "seed" || cmd === "reset") {
       const db = drizzle(client, { schema }) as unknown as Db;
-      const { inserted } = await seedDemo(db);
-      console.log(inserted ? "Seeded 3 demo clients and 3 demo users." : "Demo data already present; skipped.");
+      const storage = getStorage();
+      const { inserted, approvals } = await seedDemo(db, storage);
+      console.log(inserted ? "Seeded 3 demo clients and 3 demo users." : "Demo clients already present; skipped.");
+      console.log(approvals ? `Seeded 6 demo approval items (media → ${storage.name} storage).` : "Demo approvals already present; skipped.");
     }
     if (!["migrate", "seed", "reset"].includes(cmd ?? "")) {
       console.log("Usage: tsx scripts/db.ts <migrate|seed|reset>");

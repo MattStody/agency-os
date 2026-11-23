@@ -58,7 +58,7 @@ create policy utm_links_write on utm_links for all
 ```
 
 Every table with client data gets `client_id`, a grant to `boldly_app`, and RLS. No exceptions.
-Mirror the table in `lib/db/schema.ts` (or a `modules/<id>/schema.ts` re-exported from there).
+Mirror the tables in `modules/<id>/schema.ts` (see `modules/approvals/schema.ts`).
 
 ## 4. Logic: a service, not queries in pages
 

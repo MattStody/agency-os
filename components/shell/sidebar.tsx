@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, X } from "lucide-react";
+import { Bell, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -23,6 +23,7 @@ export interface SidebarProps {
   fallbackSlug: string | null;
   sections: { label: string; items: NavItem[] }[];
   user: { name: string | null; email: string; roleLabel: string };
+  unread: number;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -37,6 +38,8 @@ export function Sidebar(props: SidebarProps) {
         <Link href="/" aria-label="Boldly OS home">
           <Logo />
         </Link>
+        <span className="flex items-center gap-1">
+        <NotificationBell unread={props.unread} />
         <button
           onClick={() => setOpen((o) => !o)}
           className="rounded-md p-2 text-brand-paper hover:bg-white/10"
@@ -45,6 +48,7 @@ export function Sidebar(props: SidebarProps) {
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
+        </span>
       </div>
       <aside
         className={cn(
@@ -61,7 +65,24 @@ export function Sidebar(props: SidebarProps) {
   );
 }
 
-function SidebarBody({ clients, fallbackSlug, sections, user, pathname }: SidebarProps & { pathname: string }) {
+function NotificationBell({ unread }: { unread: number }) {
+  return (
+    <Link
+      href="/notifications"
+      aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+      className="relative rounded-md p-2 text-brand-sage outline-none transition hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-periwinkle"
+    >
+      <Bell className="h-[18px] w-[18px]" />
+      {unread > 0 && (
+        <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-periwinkle px-1 text-[10px] font-semibold text-brand-ink">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function SidebarBody({ clients, fallbackSlug, sections, user, pathname, unread }: SidebarProps & { pathname: string }) {
   const routeSlug = pathname.match(/^\/c\/([^/]+)/)?.[1] ?? null;
   const knownFallback = clients.some((c) => c.slug === fallbackSlug) ? fallbackSlug : null;
   const slug = routeSlug ?? knownFallback ?? clients[0]?.slug ?? null;
@@ -77,10 +98,11 @@ function SidebarBody({ clients, fallbackSlug, sections, user, pathname }: Sideba
 
   return (
     <>
-      <div className="flex h-16 shrink-0 items-center px-5">
+      <div className="flex h-16 shrink-0 items-center justify-between pl-5 pr-3">
         <Link href="/" aria-label="Boldly OS home" className="rounded outline-none focus-visible:ring-2 focus-visible:ring-brand-periwinkle">
           <Logo />
         </Link>
+        <NotificationBell unread={unread} />
       </div>
       <div className="px-3 pb-2">
         <ClientSwitcher clients={clients} currentSlug={slug} />

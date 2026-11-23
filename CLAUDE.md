@@ -7,10 +7,12 @@ Internal OS for Boldly Media. Read README.md and docs/MODULES.md first.
   (lib/db/scoped.ts). Never query with `getDb()` directly from a page/action, except auth bootstrap.
 - Every table holding client data: `client_id` column, grant to `boldly_app`, RLS policies using
   `app.can_access_client(client_id)`. Migrations in `db/migrations/` are the source of truth; mirror in
-  `lib/db/schema.ts`.
+  `lib/db/schema.ts` (core) or `modules/<id>/schema.ts` (module tables, e.g. approvals).
 - Business logic lives in `modules/<id>/service.ts` (permission check → withAccess → logActivity).
   Pages and server actions stay thin.
 - Secrets only via env vars. No real client data or personal emails in seeds/tests.
+- Files: `getStorage()` (lib/storage) — private bucket, signed URLs only, keys under `clients/<clientId>/…`.
+- Notify users with `notify(tx, access, …)` inside the transaction; actions then call `flushEmailsSoon()`.
 - New tools are modules: `npm run new:module -- <id> --name "…" [--scope client]`.
 
 ## UI

@@ -10,9 +10,17 @@ import {
   users,
 } from "@/lib/db/schema";
 import { rowsOf, type Db } from "@/lib/db/types";
+import type { StorageDriver } from "@/lib/storage/types";
+import { seedApprovals } from "./approvals";
 import { DEMO_IDS, demoActivity, demoClients, demoUsers } from "./data";
 
-export async function seedDemo(db: Db): Promise<{ inserted: boolean }> {
+export async function seedDemo(db: Db, storage?: StorageDriver): Promise<{ inserted: boolean; approvals: boolean }> {
+  const core = await seedCore(db);
+  const approvals = storage ? (await seedApprovals(db, storage)).inserted : false;
+  return { inserted: core.inserted, approvals };
+}
+
+async function seedCore(db: Db): Promise<{ inserted: boolean }> {
   const existing = await db.execute(sql`select 1 from clients where id = ${DEMO_IDS.clients.harbourline}`);
   if (rowsOf(existing).length > 0) return { inserted: false };
 

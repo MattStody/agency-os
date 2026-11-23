@@ -112,3 +112,26 @@ export type ClientChannel = typeof clientChannels.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 export type ActivityEntry = typeof activityLog.$inferSelect;
+
+export const EMAIL_STATUSES = ["pending", "sending", "sent", "failed", "skipped"] as const;
+export type EmailStatus = (typeof EMAIL_STATUSES)[number];
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+  module: text("module").notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  link: text("link"),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  emailStatus: text("email_status").$type<EmailStatus>(),
+  emailError: text("email_error"),
+  emailedAt: timestamp("emailed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type Notification = typeof notifications.$inferSelect;

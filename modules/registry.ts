@@ -2,7 +2,7 @@
 //   npm run new:module -- <id> --name "Name" [--scope client|global]
 // or add an import + entry by hand (see docs/MODULES.md).
 import { can, type Access } from "@/lib/permissions";
-import { approvalsModule } from "./approvals/manifest";
+import { approvalsModule, approvalsQueueModule } from "./approvals/manifest";
 import { coreModules } from "./core/manifest";
 import { invoicingModule } from "./invoicing/manifest";
 import { portalModule } from "./portal/manifest";
@@ -14,6 +14,7 @@ import type { ModuleManifest, ResolvedModule } from "./types";
 export const MODULES: ModuleManifest[] = [
   ...coreModules,
   approvalsModule,
+  approvalsQueueModule,
   reportingModule,
   tasksModule,
   invoicingModule,

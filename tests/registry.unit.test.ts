@@ -35,7 +35,8 @@ describe("module registry", () => {
   });
 
   it("finds planned modules for the placeholder routes", () => {
-    expect(findModule("client", "approvals")?.status).toBe("planned");
+    expect(findModule("client", "reporting")?.status).toBe("planned");
+    expect(findModule("client", "approvals")?.status).toBe("live");
     expect(findModule("global", "tools/tasks")?.id).toBe("tasks");
   });
 });

@@ -8,10 +8,13 @@ import * as schema from "@/lib/db/schema";
 import type { Db } from "@/lib/db/types";
 import { buildAccess, type Access } from "@/lib/permissions";
 import { DEMO_IDS, demoUsers } from "@/db/seed/data";
+import { memoryDriver } from "@/lib/storage/memory";
+import { setStorageForTests } from "@/lib/storage";
 
 export interface TestDb {
   db: Db;
   pg: PGlite;
+  storage: ReturnType<typeof memoryDriver>;
   close(): Promise<void>;
 }
 
@@ -22,8 +25,10 @@ export async function createTestDb({ seed = true } = {}): Promise<TestDb> {
     rows: async (s) => (await pg.query(s)).rows as never[],
   });
   const db = drizzle(pg, { schema }) as unknown as Db;
-  if (seed) await seedDemo(db);
-  return { db, pg, close: () => pg.close() };
+  const storage = memoryDriver();
+  setStorageForTests(storage);
+  if (seed) await seedDemo(db, storage);
+  return { db, pg, storage, close: () => pg.close() };
 }
 
 type DemoUserKey = keyof typeof DEMO_IDS.users;

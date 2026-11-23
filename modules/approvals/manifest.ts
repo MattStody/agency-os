@@ -1,6 +1,7 @@
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Inbox } from "lucide-react";
 import type { ModuleManifest } from "../types";
 
+/** Per-client approvals, under the client switcher. */
 export const approvalsModule: ModuleManifest = {
   id: "approvals",
   name: "Approvals",
@@ -8,7 +9,21 @@ export const approvalsModule: ModuleManifest = {
   icon: CheckCircle2,
   scope: "client",
   section: "workspace",
-  status: "planned",
+  status: "live",
   requires: "approvals.view",
   order: 10,
+};
+
+/** Boldly's cross-client view of everything awaiting a decision. */
+export const approvalsQueueModule: ModuleManifest = {
+  id: "approvals-queue",
+  name: "Approvals queue",
+  description: "Every open approval across all clients.",
+  icon: Inbox,
+  scope: "global",
+  section: "tools",
+  status: "live",
+  requires: "approvals.manage",
+  path: "tools/approvals",
+  order: 0,
 };
