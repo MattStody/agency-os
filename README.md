@@ -39,7 +39,16 @@ Demo sign-in is always disabled on Vercel production (`VERCEL_ENV=production`).
 | `npm run db:reset` | drop + migrate + seed (**local databases only**) |
 | `npm run new:module -- <id> --name "Name" [--scope client\|global]` | scaffold a module — see [docs/MODULES.md](docs/MODULES.md) |
 
-## Production setup (Supabase + Vercel)
+## Hosted setup (Supabase + Vercel)
+
+The Supabase project `agency-os` is already migrated and seeded with the demo data (private bucket
+`boldly-os` created). To redeploy schema changes, apply new files in `db/migrations/` in order
+(`npm run db:migrate` with `DATABASE_URL` pointing at Supabase).
+
+**Minimum Vercel env vars to view the demo on a Preview deployment:** `DATABASE_URL`,
+`AUTH_SECRET`, `DEMO_LOGIN=true` (Preview only). Demo sign-in never works on Production.
+
+## Production setup (from scratch)
 
 1. **Database.** Create a Supabase project. Set `DATABASE_URL` to the *transaction pooler* URI
    (port 6543) and run `npm run db:migrate`. TLS is handled in `lib/db/client.ts`. Run `db:seed`
