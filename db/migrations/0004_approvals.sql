@@ -44,7 +44,8 @@ create index approval_versions_item_idx on approval_versions (item_id);
 
 alter table approval_items
   add constraint approval_items_current_version_fk
-  foreign key (current_version_id) references approval_versions (id) on delete set null;
+  foreign key (current_version_id) references approval_versions (id) on delete set null
+  deferrable initially deferred;  -- item ↔ version are created in one transaction
 
 create table approval_assets (
   id            uuid primary key default gen_random_uuid(),

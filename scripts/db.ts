@@ -2,8 +2,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import { seedDemo } from "@/db/seed/seed";
+import { connectionOptions } from "@/lib/db/client";
 import { migrate } from "@/lib/db/migrate";
-import { getStorage } from "@/lib/storage";
 import * as schema from "@/lib/db/schema";
 import type { Db } from "@/lib/db/types";
 import { loadEnv } from "./env";
@@ -14,7 +14,7 @@ async function main() {
   const cmd = process.argv[2];
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set (see .env.example).");
-  const client = new Client({ connectionString: url });
+  const client = new Client(connectionOptions(url));
   await client.connect();
   try {
     if (cmd === "reset") {
@@ -37,10 +37,9 @@ async function main() {
     }
     if (cmd === "seed" || cmd === "reset") {
       const db = drizzle(client, { schema }) as unknown as Db;
-      const storage = getStorage();
-      const { inserted, approvals } = await seedDemo(db, storage);
+      const { inserted, approvals } = await seedDemo(db);
       console.log(inserted ? "Seeded 3 demo clients and 3 demo users." : "Demo clients already present; skipped.");
-      console.log(approvals ? `Seeded 6 demo approval items (media → ${storage.name} storage).` : "Demo approvals already present; skipped.");
+      console.log(approvals ? "Seeded 6 demo approval items (media from public/demo-media)." : "Demo approvals already present; skipped.");
     }
     if (!["migrate", "seed", "reset"].includes(cmd ?? "")) {
       console.log("Usage: tsx scripts/db.ts <migrate|seed|reset>");

@@ -10,13 +10,12 @@ import {
   users,
 } from "@/lib/db/schema";
 import { rowsOf, type Db } from "@/lib/db/types";
-import type { StorageDriver } from "@/lib/storage/types";
 import { seedApprovals } from "./approvals";
 import { DEMO_IDS, demoActivity, demoClients, demoUsers } from "./data";
 
-export async function seedDemo(db: Db, storage?: StorageDriver): Promise<{ inserted: boolean; approvals: boolean }> {
+export async function seedDemo(db: Db): Promise<{ inserted: boolean; approvals: boolean }> {
   const core = await seedCore(db);
-  const approvals = storage ? (await seedApprovals(db, storage)).inserted : false;
+  const approvals = (await seedApprovals(db)).inserted;
   return { inserted: core.inserted, approvals };
 }
 

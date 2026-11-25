@@ -27,7 +27,7 @@ export async function createTestDb({ seed = true } = {}): Promise<TestDb> {
   const db = drizzle(pg, { schema }) as unknown as Db;
   const storage = memoryDriver();
   setStorageForTests(storage);
-  if (seed) await seedDemo(db, storage);
+  if (seed) await seedDemo(db);
   return { db, pg, storage, close: () => pg.close() };
 }
 

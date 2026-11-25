@@ -6,11 +6,30 @@ import type { StorageDriver } from "./types";
 
 export type { StorageDriver, UploadTarget } from "./types";
 
+/**
+ * Keys under demo/ point at the fictional sample media bundled in
+ * public/demo-media, so seeded demo data works with any driver (and on
+ * Vercel) without uploading anything. Never used for real client files.
+ */
+export const DEMO_PREFIX = "demo/";
+
+function withDemoMedia(d: StorageDriver): StorageDriver {
+  const isDemo = (k: string) => k.startsWith(DEMO_PREFIX);
+  return {
+    name: d.name,
+    createUploadTarget: d.createUploadTarget.bind(d),
+    put: d.put.bind(d),
+    signedUrl: (k, e) => (isDemo(k) ? Promise.resolve(`/demo-media/${k.slice(DEMO_PREFIX.length)}`) : d.signedUrl(k, e)),
+    stat: (k) => (isDemo(k) ? Promise.resolve(null) : d.stat(k)),
+    remove: (keys) => d.remove(keys.filter((k) => !isDemo(k))),
+  };
+}
+
 let override: StorageDriver | null = null;
 let cached: StorageDriver | null = null;
 
 export function getStorage(): StorageDriver {
-  if (override) return override;
+  if (override) return withDemoMedia(override);
   if (!cached) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,7 +42,7 @@ export function getStorage(): StorageDriver {
       cached = localDriver();
     }
   }
-  return cached;
+  return withDemoMedia(cached);
 }
 
 /** Tests only. */

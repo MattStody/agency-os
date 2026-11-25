@@ -41,8 +41,9 @@ Demo sign-in is always disabled on Vercel production (`VERCEL_ENV=production`).
 
 ## Production setup (Supabase + Vercel)
 
-1. **Database.** Create a Supabase project. Set `DATABASE_URL` to the *transaction pooler* URI and run
-   `npm run db:migrate` (do **not** run `db:seed` in production unless you want the demo clients).
+1. **Database.** Create a Supabase project. Set `DATABASE_URL` to the *transaction pooler* URI
+   (port 6543) and run `npm run db:migrate`. TLS is handled in `lib/db/client.ts`. Run `db:seed`
+   only if you want the demo clients (their media is served from `public/demo-media`).
 2. **Google sign-in.** Google Cloud → OAuth client (Web). Redirect URI
    `https://<project-ref>.supabase.co/auth/v1/callback`. Add it as the Google provider in Supabase Auth.
    Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.

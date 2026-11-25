@@ -5,7 +5,7 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { activityLog, notifications } from "@/lib/db/schema";
 import { rowsOf, type Db } from "@/lib/db/types";
-import type { StorageDriver } from "@/lib/storage/types";
+import { DEMO_PREFIX } from "@/lib/storage";
 import {
   approvalAssets,
   approvalComments,
@@ -18,7 +18,7 @@ import {
 } from "@/modules/approvals/schema";
 import { DEMO_IDS } from "./data";
 
-const MEDIA_DIR = path.join(process.cwd(), "db", "seed", "media");
+const MEDIA_DIR = path.join(process.cwd(), "public", "demo-media");
 const C = DEMO_IDS.clients;
 const U = DEMO_IDS.users;
 
@@ -245,23 +245,12 @@ const ITEMS: SeedItem[] = [
 const versionId = (itemId: string, n: number) =>
   `4${itemId.slice(1, -4)}${itemId.slice(-2)}${String(n).padStart(2, "0")}`;
 
-export async function seedApprovals(db: Db, storage: StorageDriver): Promise<{ inserted: boolean }> {
+export async function seedApprovals(db: Db): Promise<{ inserted: boolean }> {
   const existing = rowsOf(await db.execute(sql`select 1 from approval_items where id = ${DEMO_APPROVAL_IDS.harbourlineAd}`));
   if (existing.length > 0) return { inserted: false };
 
-  // Upload media first (outside the transaction).
-  const uploaded = new Map<string, string>();
-  for (const item of ITEMS) {
-    for (const [vi, v] of item.versions.entries()) {
-      for (const a of v.assets) {
-        const vid = versionId(item.id, vi + 1);
-        const ext = path.extname(a.file).slice(1);
-        const key = `clients/${item.clientId}/approvals/${item.id}/${vid}/${a.file.replace(/\.[^.]+$/, "")}.${ext}`;
-        await storage.put(key, readFileSync(path.join(MEDIA_DIR, a.file)), ext === "mp4" ? "video/mp4" : "image/jpeg");
-        uploaded.set(`${vid}:${a.file}`, key);
-      }
-    }
-  }
+  // Demo media ships as static files (public/demo-media); see DEMO_PREFIX in lib/storage.
+  const keyFor = (file: string) => `${DEMO_PREFIX}${file}`;
 
   await db.transaction(async (tx) => {
     for (const item of ITEMS) {
@@ -299,7 +288,7 @@ export async function seedApprovals(db: Db, storage: StorageDriver): Promise<{ i
             itemId: item.id,
             clientId: item.clientId,
             kind: a.durationS ? ("video" as const) : ("image" as const),
-            storageKey: uploaded.get(`${vid}:${a.file}`)!,
+            storageKey: keyFor(a.file),
             mimeType: a.durationS ? "video/mp4" : "image/jpeg",
             sizeBytes: readFileSync(path.join(MEDIA_DIR, a.file)).byteLength,
             originalName: a.file,
